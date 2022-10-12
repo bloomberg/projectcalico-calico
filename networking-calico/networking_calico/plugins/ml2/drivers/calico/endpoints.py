@@ -142,7 +142,7 @@ class WorkloadEndpointSyncer(ResourceSyncer):
                 endpoint_labels(port, self.namespace),
                 endpoint_annotations(port))
 
-    def write_endpoint(self, port, context, must_update=False):
+    def write_endpoint(self, port, context, must_update=False, host_id=None):
         # Reread the current port. This protects against concurrent writes
         # breaking our state.
         port = self.db.get_port(context, port['id'])
@@ -161,7 +161,7 @@ class WorkloadEndpointSyncer(ResourceSyncer):
         mod_revision = etcdv3.MUST_UPDATE if must_update else None
         datamodel_v3.put("WorkloadEndpoint",
                          self.namespace,
-                         endpoint_name(port),
+                         endpoint_name(port, host_id=host_id),
                          endpoint_spec(port),
                          labels=endpoint_labels(port, self.namespace),
                          annotations=endpoint_annotations(port),
@@ -319,7 +319,10 @@ class WorkloadEndpointSyncer(ResourceSyncer):
             LOG.exception("Failed to query Keystone DB")
 
 
-def endpoint_name(port):
+def endpoint_name(port, host_id=None):
+    # If no host_id was specified, then use whatever the binding indicates.
+    if host_id is None:
+        host_id = port['binding:host_id']
     def escape_dashes(s):
         return s.replace("-", "--")
     return "%s-openstack-%s-%s" % (

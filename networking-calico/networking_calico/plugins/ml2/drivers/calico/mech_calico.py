@@ -797,7 +797,9 @@ class CalicoMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
                 LOG.info("Migration, delete WorkloadEndpoint on old host %s",
                          original['binding:host_id'])
                 self.endpoint_syncer.delete_endpoint(original)
-                endpoint_should_already_exist = False
+                # We already used pre-live-migration to pre-place the endpoint.
+                # TODO(tstachecki): What about other updates during this time?
+                return
 
             try:
                 port = self.db.get_port(plugin_context, port['id'])
@@ -817,7 +819,11 @@ class CalicoMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
             # - a change to an unbound port (which we don't care about, because
             #   we do nothing with unbound ports).
             if port.get('binding:profile', {}).get('migrating_to') is not None:
-                LOG.debug("Pre-live-migration notification message: no action")
+                LOG.info("Port pre-live-migration to %s" % migrating_to)
+                self.endpoint_syncer.write_endpoint(port,
+                                                    plugin_context,
+                                                    host_id=migrating_to)
+                return
             elif port_bound(port):
                 if endpoint_should_already_exist:
                     LOG.info("Port update")
